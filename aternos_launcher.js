@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { removeAds, bypassAdblockWarning, startGlobalWatcher, removeAds } = require('./helpers');
+const { removeAds, bypassAdblockWarning, startGlobalWatcher} = require('./helpers');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
