@@ -21,7 +21,7 @@ async function aternosAutomation() {
 
     await page.setRequestInterception(true);
 
-    const removeAds = removeAds(page);
+    const ads_remove = removeAds(page);
 
     try {
         console.log('[1/5] Entering Aternos');
