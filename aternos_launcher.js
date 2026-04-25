@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { removeAds, bypassAdblockWarning, startGlobalWatcher, removeAds } = require('./helpers');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
@@ -16,6 +17,11 @@ async function aternosAutomation() {
     });
     
     const page = await browser.newPage();
+    const watcher = startGlobalWatcher(page);
+
+    await page.setRequestInterception(true);
+
+    const removeAds = removeAds(page);
 
     try {
         console.log('[1/5] Entering Aternos');
