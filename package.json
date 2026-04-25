@@ -1,0 +1,25 @@
+{
+  "name": "aternos-eternal-bot",
+  "version": "1.1.0",
+  "description": "Aternos Auto-Login & Keep-Alive Bot with Internal Timer",
+  "main": "aternos_launcher.js",
+  "scripts": {
+    "start": "node aternos_launcher.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "aternos",
+    "minecraft",
+    "puppeteer",
+    "automation",
+    "stealth"
+  ],
+  "author": "DKHRAPTH",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^22.6.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "dotenv": "^16.0.3"
+  }
+}
