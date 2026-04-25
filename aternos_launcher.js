@@ -18,9 +18,6 @@ async function aternosAutomation() {
     
     const page = await browser.newPage();
     const watcher = startGlobalWatcher(page);
-
-    await page.setRequestInterception(true);
-
     const ads_remove = removeAds(page);
 
     try {
