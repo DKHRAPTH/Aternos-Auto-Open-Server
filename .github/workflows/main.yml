@@ -27,3 +27,4 @@ jobs:
           
           ATERNOS_USER: ${{ secrets.ATERNOS_USER }}
           ATERNOS_PASS: ${{ secrets.ATERNOS_PASS }}
+          SERVER_NAME: ${{ secrets.SERVER_NAME }}
