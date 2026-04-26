@@ -8,21 +8,22 @@ const ATERNOS_USER = process.env.ATERNOS_USER;
 const ATERNOS_PASS = process.env.ATERNOS_PASS;
 const SERVER_NAME = process.env.SERVER_NAME;
 let restartCount = 0;
-
 async function aternosAutomation() {
     const browser = await puppeteer.launch({
-        headless: false, // Set to true for local development
+        headless: false,
         userDataDir: './aternos_session',
         args: ['--no-sandbox', '--disable-setuid-sandbox'] 
     });
     
     const page = await browser.newPage();
-    const watcher = startGlobalWatcher(page);
-    const ads_remove = removeAds(page);
 
+    await page.setRequestInterception(true);
+    await removeAds(page);
+    
     try {
         console.log('[1/5] Entering Aternos');
         await page.goto('https://aternos.org/servers/', { waitUntil: 'networkidle2' });
+        startGlobalWatcher(page);
         await new Promise(r => setTimeout(r, 5000));
 
         const loginInput = await page.$('.username');

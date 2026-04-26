@@ -1,15 +1,28 @@
 async function removeAds(page) {
-    await page.evaluate(() => {
-        const adSelectors = [
-            '.ad-container', '.ad-slot', '[id^="google_ads"]', 
-            '.fc-ab-root', '.btn-close', 'ins.adsbygoogle'
+    await page.setRequestInterception(true);
+
+    page.on('request', (request) => {
+        const url = request.url();
+
+        const adBlockList = [
+            'googleads',
+            'doubleclick',
+            'adservice',
+            'adnxs',
+            'carbonads',
+            'quantserve',
+            'popads',
+            'analytics',
+            'facebook'
         ];
-        adSelectors.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(el => el.remove());
-        });
-        const startBtn = document.querySelector('#start');
-        if (startBtn) startBtn.style.zIndex = "9999";
+
+        const isAd = adBlockList.some(adUrl => url.includes(adUrl));
+
+        if (isAd) {
+            request.abort();
+        } else {
+            request.continue();
+        }
     });
 }
 
@@ -33,30 +46,24 @@ async function bypassAdblockWarning(page) {
  */
 function startGlobalWatcher(page) {
     let isClicking = false;
-
-    return setInterval(async () => {
-        if (isClicking) return;
+    const globalWatcher = setInterval(async () => {
+        if (isClicking) return; // ถ้ากำลังกดอยู่ ให้ข้ามรอบนี้ไปก่อน
 
         try {
-            // Find Adblock button with XPath
             const adblockBtn = await page.$('::-p-xpath(//div[contains(text(), "Continue with adblocker anyway")])');
             
             if (adblockBtn) {
                 const isVisible = await adblockBtn.boundingBox();
+                
                 if (isVisible) {
                     isClicking = true;
-                    console.log('[WATCHER] Detected Adblock wall, clicking bypass...');
+                    console.log('🛡️ [Global Watcher] เจอของจริง! กำลังกดยืนยัน...');
                     
                     await adblockBtn.click({ force: true });
                     await new Promise(r => setTimeout(r, 3000));
                     isClicking = false;
                 }
             }
-            const closeBtn = await page.$('.btn-close, .ai-close, #close-button');
-            if (closeBtn) {
-                await closeBtn.click({ force: true });
-            }
-
         } catch (e) {
             isClicking = false;
         }
