@@ -1,91 +1,132 @@
 require('dotenv').config();
-const { removeAds, bypassAdblockWarning, startGlobalWatcher} = require('./helpers');
-const puppeteer = require('puppeteer-extra');
+const {
+    startGlobalWatcher,
+    detectState,
+    doLogin,
+    openServer,
+    clickStart,
+    handleQueue,
+    isOnline
+} = require('./helpers');const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-const ATERNOS_USER = process.env.ATERNOS_USER;
-const ATERNOS_PASS = process.env.ATERNOS_PASS;
-const SERVER_NAME = process.env.SERVER_NAME;
-let restartCount = 0;
+let currentState = 'BOOT';
+let busy = false;
+
+function setState(newState) {
+    if (currentState === newState) return;
+
+    currentState = newState;
+    console.log(`\n[STATE] => ${newState}`);
+}
+
+function startStateEngine(page) {
+    setInterval(async () => {
+        if (busy) return;
+        busy = true;
+
+        try {
+            const state = await detectState(page);
+
+            switch (state) {
+                case 'LOGIN':
+                    setState('LOGIN');
+                    await doLogin(page);
+                    break;
+
+                case 'DASHBOARD':
+                    setState('DASHBOARD');
+                    await openServer(page);
+                    break;
+
+                case 'SERVER':
+                    setState('SERVER');
+                    await clickStart(page);
+                    break;
+
+                case 'QUEUE':
+                    setState('QUEUE');
+                    await handleQueue(page);
+                    break;
+
+                case "PREPARING":
+                    console.log("Preparing...");
+                    break;    
+                            
+                case 'ONLINE':
+                    setState('ONLINE');
+                    await isOnline(page);
+                    break;
+
+                case "STARTING": 
+                    console.log("Starting..."); 
+                    break;
+
+                case "STOPPING": 
+                    console.log("Stopping..."); 
+                    break;
+
+                case 'LOADING':
+                    break;
+                default:
+                    setState('UNKNOWN');
+                    console.log('[INFO] Waiting page / Unknown content...');
+                    break;
+            }
+
+        } catch (err) {
+            console.log('[ENGINE ERROR]', err.message);
+        }
+        busy = false;
+    }, 1000);
+}
+
 async function aternosAutomation() {
     const browser = await puppeteer.launch({
-        headless: false,
+        headless: false,//Set to true if you run on server without GUI
         userDataDir: './aternos_session',
         args: ['--no-sandbox', '--disable-setuid-sandbox'] 
     });
     
     const page = await browser.newPage();
+    browser.on('targetcreated', async (target) => {
+    if (target.type() === 'page') {
+        const newPage = await target.page();
+        if (!newPage) return;
 
-    await page.setRequestInterception(true);
-    await removeAds(page);
+        try {
+            const url = newPage.url();
+            if (url === 'about:blank' || !url.includes('aternos.org')) {
+                console.log(`[ANTIPUP] Detected pop-up: ${url}`);
+                await new Promise(r => setTimeout(r, 1000)); 
+                if (!newPage.isClosed()) {
+                    await newPage.close().catch(() => {});
+                    console.log(`[ANTIPUP] Closed successfully`);
+                }
+            }
+        } catch (err) {
+            console.log(`[ANTIPUP] Handled safe closure`);
+        }
+    }
+});
+    
     
     try {
-        console.log('[1/5] Entering Aternos');
-        await page.goto('https://aternos.org/servers/', { waitUntil: 'networkidle2' });
+        console.log('[BOOT] Starting browser...');
+        
+        
+        console.log('[1/3] Opening Aternos...');
+        await page.goto('https://aternos.org/servers/', {
+            waitUntil: 'networkidle2'
+        });
+        
         startGlobalWatcher(page);
-        await new Promise(r => setTimeout(r, 5000));
+        
+        console.log('[2/3] Starting State Engine...');
+        startStateEngine(page);
 
-        const loginInput = await page.$('.username');
-        if (loginInput) {
-            console.log('[2/5] Login sequence started');
-            await page.type('.username', ATERNOS_USER);
-            await page.type('.password', ATERNOS_PASS);
-            await Promise.all([
-                page.click('.login-button'),
-                page.waitForNavigation({ waitUntil: 'networkidle2' })
-            ]);
-        } else {
-            console.log('[2/5] Login skipped: Session active');
-        }
-
-        console.log('[3/5] Selecting server:', SERVER_NAME);
-        await page.waitForSelector('.server-name', { timeout: 10000 });
-        const servers = await page.$$('.server-name');
-        for (const el of servers) {
-            const text = await page.evaluate(n => n.innerText, el);
-            if (text && text.includes(SERVER_NAME)) {
-                await el.click();
-                await page.waitForNavigation({ waitUntil: 'networkidle2' });
-                break;
-            }
-        }
-
-        console.log('[4/5] Checking server status');
-        const status = await page.evaluate(() => document.body.innerText);
-        if (status.includes('Offline')) {
-            console.log('[4/5] Status: Offline. Clicking Start');
-            await page.click('#start');
-            try {
-                await page.waitForSelector('.btn-success', { visible: true, timeout: 5000 });
-                await page.click('.btn-success');
-            } catch (e) {
-                console.log('[WARNING] Confirm button not found or not required');
-            }
-        }
-
-        console.log('[5/5] Monitoring system activated');
-        setInterval(async () => {
-            try {
-                const time = await page.evaluate(() => {
-                    const el = document.querySelector('.server-end-countdown');
-                    return el ? el.innerText.trim() : null;
-                });
-
-                if (time) {
-                    console.log('[INFO] Countdown:', time);
-                    const [m, s] = time.split(':').map(Number);
-                    if ((m * 60) + s < 20) {
-                        console.log('[ACTION] Restarting server');
-                        await page.click('#restart');
-                        restartCount++;
-                        console.log(`[INFO] Restart count: ${restartCount}`);
-                    }
-                }
-            } catch (e) {
-                console.log('[ERROR] Monitor loop error');
-            }
-        }, 15000);
+        console.log('[3/3] Automation Running...');
 
     } catch (err) {
         console.log('[FATAL ERROR]', err.message);
