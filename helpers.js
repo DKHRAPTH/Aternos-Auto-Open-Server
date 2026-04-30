@@ -7,65 +7,56 @@ const SERVER_NAME = process.env.SERVER_NAME || "";
 let restartCount = 0;
 let onlineMonitorInterval = null;
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function safeClick(elementHandle) {
-    if (!elementHandle) return false;
-
-    try {
-        await elementHandle.evaluate(el => el.click());
-        return true;
-    } catch {
-        try {
-            await elementHandle.click();
-            return true;
-        } catch {
-            return false;
-        }
-    }
-}
 async function dismissPopups(page) {
     try {
-        await page.evaluate(() => {
-            const closeSelectors = [
-                '.continue-prompt-text',
+        const clicked = await page.evaluate(() => {
+
+            function tryClick(el) {
+                if (!el) return false;
+
+                const visible =
+                    el.offsetWidth > 0 &&
+                    el.offsetHeight > 0 &&
+                    getComputedStyle(el).visibility !== "hidden";
+
+                if (!visible) return false;
+
+                el.scrollIntoView({ block: "center" });
+                el.click();
+                return true;
+            }
+            const mainBtn = document.querySelector(".continue-prompt-text");
+            if (tryClick(mainBtn)) return "continue-prompt-text";
+            const selectors = [
                 'button[aria-label="Close"]',
                 '.btn-close',
                 '.close-button',
                 '#dismiss-button',
-                '.fa-times', 
+                '.fa-times',
                 'div[role="button"] i.fa-remove'
             ];
 
-            closeSelectors.forEach(sel => {
-                const elements = document.querySelectorAll(sel);
-                elements.forEach(el => {
-                    if (el.offsetWidth > 0 && el.offsetHeight > 0) {
-                        el.click();
-                    }
-                });
-            });
-
-            
-            if (document.body.style.overflow === 'hidden') {
-                document.body.style.overflow = 'auto';
+            for (const sel of selectors) {
+                const el = document.querySelector(sel);
+                if (tryClick(el)) return sel;
             }
-
-            const xpath = "//.[node()='Close' or contains(text(), 'Close')]";
-            const result = document.evaluate(xpath, document, null, XPathResult.ANY_TYPE, null);
-            let node = result.iterateNext();
-            
-            while (node) {
-                if (node.offsetWidth > 0 && node.offsetHeight > 0 && node.offsetWidth < 500) {
-                    node.click();
+            const nodes = [...document.querySelectorAll("div,button,span")];
+            for (const el of nodes) {
+                const txt = el.innerText?.trim().toLowerCase();
+                if (txt === "close" && tryClick(el)) {
+                    return "text-close";
                 }
-                node = result.iterateNext();
             }
+
+            return null;
         });
+
+        if (clicked) {
+            console.log("[WATCHER] Closed popup via:", clicked);
+        }
+
     } catch (e) {
-        
+        console.log("[WATCHER ERROR]", e.message);
     }
 }
 function startGlobalWatcher(page) {
@@ -95,7 +86,7 @@ function startGlobalWatcher(page) {
             if (closeBtn) {
                 const box = await closeBtn.boundingBox();
                 if (box) {
-                    console.log("🎯 [Watcher] Found 'Close' text, clicking...");
+                    console.log("[Watcher] Found 'Close' text, clicking...");
                     await humanClick(page, closeXpath);
                 }
             }
